@@ -1,5 +1,4 @@
 import torch
-import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 import wandb
@@ -8,6 +7,7 @@ import hydra
 
 from earthquake_segmentation.dataset import EarthquakeDamageDataset, make_splits
 from earthquake_segmentation.model import build_model
+from earthquake_segmentation.losses import build_loss
 from earthquake_segmentation.utils import (
     MetricTracker,
     save_checkpoint,
@@ -36,6 +36,7 @@ def main(cfg: DictConfig):
 
     device = torch.device(cfg.training.device if torch.cuda.is_available() else "cpu")
     model = build_model(cfg).to(device)
+    loss_fn = build_loss(cfg)
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=cfg.training.lr, weight_decay=cfg.training.weight_decay
     )
@@ -48,7 +49,7 @@ def main(cfg: DictConfig):
             imgs, masks = imgs.to(device), masks.to(device)
             optimizer.zero_grad()
             outputs = model(imgs)
-            loss = F.cross_entropy(outputs, masks)
+            loss = loss_fn(outputs, masks)
             loss.backward()
             optimizer.step()
             train_loss += loss.item()
@@ -64,7 +65,7 @@ def main(cfg: DictConfig):
             for imgs, masks, _ in tqdm(val_loader, desc="Val"):
                 imgs, masks = imgs.to(device), masks.to(device)
                 outputs = model(imgs)
-                val_loss += F.cross_entropy(outputs, masks).item()
+                val_loss += loss_fn(outputs, masks).item()
                 preds = outputs.argmax(dim=1)
                 tracker.update(preds, masks)
                 all_imgs.extend(imgs.cpu())
