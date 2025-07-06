@@ -60,4 +60,4 @@ training:
 # Logging settings
 logging:
   wandb_project: eq-damage
-
+  wandb_dir: wandb

@@ -1,3 +1,5 @@
+import os
+from hydra.core.hydra_config import HydraConfig
 import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -18,9 +20,17 @@ from earthquake_segmentation.utils import (
 @hydra.main(version_base=None, config_path="../conf", config_name="config")
 def main(cfg: DictConfig):
     torch.manual_seed(cfg.seed)
+
+    run_dir = HydraConfig.get().runtime.output_dir
+    OmegaConf.set_readonly(cfg, False)
+    cfg.training.checkpoint_dir = os.path.join(run_dir, cfg.training.checkpoint_dir)
+    cfg.logging.wandb_dir = os.path.join(run_dir, cfg.logging.wandb_dir)
+    os.makedirs(cfg.training.checkpoint_dir, exist_ok=True)
+    os.makedirs(cfg.logging.wandb_dir, exist_ok=True)
     wandb.init(
         project=cfg.logging.wandb_project,
         config=OmegaConf.to_container(cfg, resolve=True),  ## type: ignore
+        dir=cfg.logging.wandb_dir,
     )
 
     train_ids, val_ids = make_splits(cfg)
