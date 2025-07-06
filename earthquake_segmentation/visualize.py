@@ -26,7 +26,8 @@ def visualize(cfg: DictConfig):
     imgs, masks, _ = next(iter(loader))
 
     # Plot images and masks
-    fig, axes = plt.subplots(n, 2, figsize=(6, 3 * n))
+    # Ensure axes is always a 2D array so indexing works when n == 1
+    fig, axes = plt.subplots(n, 2, figsize=(6, 3 * n), squeeze=False)
     for i in range(n):
         img = imgs[i].permute(1, 2, 0).numpy()
         mask = masks[i].numpy()

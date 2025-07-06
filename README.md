@@ -23,3 +23,13 @@ conda create -n building_damage python=3.12
 conda activate building_damage
 pip install -e .
 ```
+
+### Configurable Loss
+
+Training uses the loss specified in `conf/config.yaml`:
+
+```yaml
+loss:
+  name: cross_entropy_dice  # other options: cross_entropy or dice
+  dice_weight: 1.0
+```
