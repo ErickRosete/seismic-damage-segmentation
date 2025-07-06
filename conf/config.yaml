@@ -43,6 +43,11 @@ model:
   encoder_weights: imagenet
   num_classes: 3
 
+# Loss configuration
+loss:
+  name: cross_entropy  # options: cross_entropy, dice, cross_entropy_dice
+  dice_weight: 1.0
+
 # Training hyperparameters
 training:
   batch_size: 32
@@ -55,3 +60,4 @@ training:
 # Logging settings
 logging:
   wandb_project: eq-damage
+
