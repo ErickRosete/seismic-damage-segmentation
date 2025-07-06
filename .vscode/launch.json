@@ -1,0 +1,34 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Python: Run Current File",
+      "type": "python",
+      "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal",
+      "args": ["--config-path", "${workspaceFolder}/conf", "--config-name", "config"],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Train Model (Module)",
+      "type": "python",
+      "request": "launch",
+      "module": "earthquake_segmentation.train",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Visualize Transforms (Module)",
+      "type": "python",
+      "request": "launch",
+      "module": "earthquake_segmentation.visualize",
+      "args": [
+        "+visualize.stage=train",
+        "+visualize.n=6"
+      ],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}
