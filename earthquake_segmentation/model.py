@@ -13,5 +13,19 @@ def build_model(cfg):
             in_channels=3,
             classes=m.num_classes,
         )
+    if m.name == "deeplabv3plus":
+        return smp.DeepLabV3Plus(
+            encoder_name=m.encoder,
+            encoder_weights=m.encoder_weights,
+            in_channels=3,
+            classes=m.num_classes,
+        )
+    if m.name == "unetplusplus":
+        return smp.UnetPlusPlus(
+            encoder_name=m.encoder,
+            encoder_weights=m.encoder_weights,
+            in_channels=3,
+            classes=m.num_classes,
+        )
     # Add additional architectures here
     raise ValueError(f"Unsupported model: {m.name}")

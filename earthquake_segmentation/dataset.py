@@ -26,8 +26,8 @@ def make_splits(cfg):
         val = data.get("val", [])
     else:
         labels_dir = os.path.join(data_dir, "labels")
-        files = glob.glob(os.path.join(labels_dir, "*__label.tif"))
-        prefixes = [os.path.basename(fp)[: -len("__label.tif")] for fp in files]
+        files = glob.glob(os.path.join(labels_dir, "*_label.tif"))
+        prefixes = [os.path.basename(fp)[: -len("_label.tif")] for fp in files]
         train, val = train_test_split(
             prefixes,
             train_size=cfg.data.train_split,
@@ -78,9 +78,9 @@ class EarthquakeDamageDataset(Dataset):
         uid = self.prefixes[idx]
         # construct paths
         pre_path = os.path.join(
-            self.cfg.data.dir, "pre-disaster", f"{uid}__pre_disaster.tif"
+            self.cfg.data.dir, "pre-disaster", f"{uid}_pre_disaster.tif"
         )
-        label_path = os.path.join(self.cfg.data.dir, "labels", f"{uid}__label.tif")
+        label_path = os.path.join(self.cfg.data.dir, "labels", f"{uid}_label.tif")
 
         # read image
         with rasterio.open(pre_path) as src:

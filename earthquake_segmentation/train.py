@@ -29,6 +29,7 @@ def main(cfg: DictConfig):
     os.makedirs(cfg.logging.wandb_dir, exist_ok=True)
     wandb.init(
         project=cfg.logging.wandb_project,
+        name=cfg.logging.wandb_name,
         config=OmegaConf.to_container(cfg, resolve=True),  ## type: ignore
         dir=cfg.logging.wandb_dir,
     )
