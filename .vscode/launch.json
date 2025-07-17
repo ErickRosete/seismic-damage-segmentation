@@ -22,7 +22,7 @@
       "name": "Visualize Transforms (Module)",
       "type": "python",
       "request": "launch",
-      "module": "earthquake_segmentation.visualize",
+      "module": "earthquake_segmentation.visualizations.visualize_dataset",
       "args": [
         "+visualize.stage=train",
         "+visualize.n=6"

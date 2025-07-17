@@ -50,7 +50,7 @@ loss:
 
 # Training hyperparameters
 training:
-  batch_size: 32
+  batch_size: 16
   epochs: 50
   lr: 1e-4
   weight_decay: 1e-5
