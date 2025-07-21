@@ -67,7 +67,7 @@ training:
   epochs: 100
   lr: 1e-4
   weight_decay: 1e-5
-  device: cuda
+  device: cuda  # automatically falls back to CPU if unavailable
   checkpoint_dir: checkpoints
 
 # Logging settings

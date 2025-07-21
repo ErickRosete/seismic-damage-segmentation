@@ -38,17 +38,31 @@ def main(cfg: DictConfig):
     train_ds = EarthquakeDamageDataset(train_ids, cfg, mode="train")
     val_ds = EarthquakeDamageDataset(val_ids, cfg, mode="val")
 
+    cuda = torch.cuda.is_available() and cfg.training.device == "cuda"
+
     train_loader = DataLoader(
-        train_ds, batch_size=cfg.training.batch_size, shuffle=True, num_workers=4
+        train_ds,
+        batch_size=cfg.training.batch_size,
+        shuffle=True,
+        num_workers=4,
+        pin_memory=cuda,
+        persistent_workers=cuda,
     )
     val_loader = DataLoader(
-        val_ds, batch_size=cfg.training.batch_size, shuffle=False, num_workers=4
+        val_ds,
+        batch_size=cfg.training.batch_size,
+        shuffle=False,
+        num_workers=4,
+        pin_memory=cuda,
+        persistent_workers=cuda,
     )
 
     # if feature_cols is non-empty, tell the model the conditional vector dimension
     if cfg.data.feature_cols:
         cfg.model.vec_dim = len(cfg.data.feature_cols)
     device = torch.device(cfg.training.device if torch.cuda.is_available() else "cpu")
+    if device.type == "cuda":
+        torch.backends.cudnn.benchmark = True
 
     model = build_model(cfg).to(device)
     loss_fn = build_loss(cfg)
@@ -61,13 +75,14 @@ def main(cfg: DictConfig):
         model.train()
         train_loss = 0.0
         for imgs, masks, params in tqdm(train_loader, desc="Train"):
-            imgs, masks = imgs.to(device), masks.to(device)
+            imgs = imgs.to(device, non_blocking=cuda)
+            masks = masks.to(device, non_blocking=cuda)
 
             optimizer.zero_grad()
 
             # forward pass
             if cfg.model.is_conditional and cfg.data.feature_cols:
-                params = params.to(device)
+                params = params.to(device, non_blocking=cuda)
                 outputs = model(imgs, params)
             else:
                 outputs = model(imgs)
@@ -86,11 +101,12 @@ def main(cfg: DictConfig):
         all_imgs, all_masks, all_preds = [], [], []
         with torch.no_grad():
             for imgs, masks, params in tqdm(val_loader, desc="Val"):
-                imgs, masks = imgs.to(device), masks.to(device)
+                imgs = imgs.to(device, non_blocking=cuda)
+                masks = masks.to(device, non_blocking=cuda)
 
                 # forward pass
                 if cfg.model.is_conditional and cfg.data.feature_cols:
-                    params = params.to(device)
+                    params = params.to(device, non_blocking=cuda)
                     outputs = model(imgs, params)
                 else:
                     outputs = model(imgs)
