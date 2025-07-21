@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 
 # medbfs-afghanistan
-def show_triplet(uid, base_dir=".", figsize=(15, 5)):
+def show_triplet(uid, base_dir=".", figsize=(9, 3)):
     # build paths
     pre_path = f"{base_dir}/pre-disaster/{uid}_pre_disaster.tif"
     post_path = f"{base_dir}/post-disaster/{uid}_post_disaster.tif"
@@ -40,7 +40,10 @@ def show_triplet(uid, base_dir=".", figsize=(15, 5)):
 
 dataset_dir = "data/earthquake_dataset"
 metadata_df = pd.read_csv(f"{dataset_dir}/metadata.csv")
-first_uids_df = metadata_df.drop_duplicates(subset="dataset", keep="last")[
+# random order of metadata
+metadata_df = metadata_df.sample(frac=1, random_state=42).reset_index(drop=True)
+
+first_uids_df = metadata_df.drop_duplicates(subset="dataset", keep="first")[
     ["dataset", "uid"]
 ]
 

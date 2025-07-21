@@ -71,6 +71,8 @@ class EarthquakeDamageDataset(Dataset):
         ops.append(ToTensorV2())
         self.transforms = Compose(ops)
 
+        self.feature_cols = getattr(cfg.data, "feature_cols", None) or []
+
     def __len__(self):
         return len(self.prefixes)
 
@@ -94,8 +96,11 @@ class EarthquakeDamageDataset(Dataset):
         image, mask = augmented["image"], augmented["mask"]
 
         # load optional metadata params
-        params = []
-        if uid in self.meta:
+        if self.feature_cols and uid in self.meta:
             row = self.meta[uid]
-            params = [row.get("center_x", 0.0), row.get("center_y", 0.0)]
-        return image, mask.long(), torch.tensor(params, dtype=torch.float32)
+            vals = [row[col] for col in self.feature_cols]
+            params = torch.tensor(vals, dtype=torch.float32)
+        else:
+            params = torch.zeros(0, dtype=torch.float32)
+
+        return image, mask.long(), params

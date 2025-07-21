@@ -8,7 +8,7 @@ from omegaconf import DictConfig, OmegaConf
 import hydra
 
 from earthquake_segmentation.dataset import EarthquakeDamageDataset, make_splits
-from earthquake_segmentation.model import build_model
+from earthquake_segmentation.models.build_model import build_model
 from earthquake_segmentation.losses import build_loss
 from earthquake_segmentation.utils import (
     MetricTracker,
@@ -45,7 +45,11 @@ def main(cfg: DictConfig):
         val_ds, batch_size=cfg.training.batch_size, shuffle=False, num_workers=4
     )
 
+    # if feature_cols is non-empty, tell the model the conditional vector dimension
+    if cfg.data.feature_cols:
+        cfg.model.vec_dim = len(cfg.data.feature_cols)
     device = torch.device(cfg.training.device if torch.cuda.is_available() else "cpu")
+
     model = build_model(cfg).to(device)
     loss_fn = build_loss(cfg)
     optimizer = torch.optim.AdamW(
@@ -56,10 +60,18 @@ def main(cfg: DictConfig):
     for epoch in range(1, cfg.training.epochs + 1):
         model.train()
         train_loss = 0.0
-        for imgs, masks, _ in tqdm(train_loader, desc="Train"):
+        for imgs, masks, params in tqdm(train_loader, desc="Train"):
             imgs, masks = imgs.to(device), masks.to(device)
+
             optimizer.zero_grad()
-            outputs = model(imgs)
+
+            # forward pass
+            if cfg.model.is_conditional and cfg.data.feature_cols:
+                params = params.to(device)
+                outputs = model(imgs, params)
+            else:
+                outputs = model(imgs)
+
             loss = loss_fn(outputs, masks)
             loss.backward()
             optimizer.step()
@@ -73,9 +85,16 @@ def main(cfg: DictConfig):
         val_loss = 0.0
         all_imgs, all_masks, all_preds = [], [], []
         with torch.no_grad():
-            for imgs, masks, _ in tqdm(val_loader, desc="Val"):
+            for imgs, masks, params in tqdm(val_loader, desc="Val"):
                 imgs, masks = imgs.to(device), masks.to(device)
-                outputs = model(imgs)
+
+                # forward pass
+                if cfg.model.is_conditional and cfg.data.feature_cols:
+                    params = params.to(device)
+                    outputs = model(imgs, params)
+                else:
+                    outputs = model(imgs)
+
                 val_loss += loss_fn(outputs, masks).item()
                 preds = outputs.argmax(dim=1)
                 tracker.update(preds, masks)

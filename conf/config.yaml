@@ -13,17 +13,28 @@ seed: 42
 data:
   dir: data/earthquake_dataset             # Root folder containing 'labels', 'pre-disaster', 'post-disaster'
   train_split: 0.8             # Fraction of data used for training
+  feature_cols:
+    - mag
+    - rupture_length_km
+    - mmi
+    - center_dist_km
+    - center_depth_eff_km
+    # - depth_km
+    # - moment_Nm
+    # - epicenter_elev_m
+    # - center_elev_m
+    # - center_rel_elev_m
 
 # Augmentations (Albumentations style)
 augmentations:
   train:
     - Resize:
-        height: 512
-        width: 512
+        height: 512    # 256, 512
+        width: 512     # 256, 512
     - Normalize: {}
     - RandomCrop:
-        height: 480
-        width: 480
+        height: 480    # 224, 480
+        width: 480     # 224, 480
     - HorizontalFlip:
         p: 0.5
     - VerticalFlip:
@@ -32,26 +43,28 @@ augmentations:
         p: 0.2
   val:
     - Resize:
-        height: 480
-        width: 480
+        height: 480   # 480, 224
+        width: 480    # 480, 224
     - Normalize: {}
 
 # Model configuration
 model:
-  name: unet    # options: unet, deeplabv3plus, unetplusplus
+  name: conditional_unet    # options: unet, deeplabv3plus, unetplusplus, conditional_unet
   encoder: resnet34
   encoder_weights: imagenet
   num_classes: 3
+  is_conditional: true
+  vec_dim: null
 
 # Loss configuration
 loss:
-  name: cross_entropy  # options: cross_entropy, dice, cross_entropy_dice
+  name: cross_entropy # options: cross_entropy, dice, cross_entropy_dice
   dice_weight: 1.0
 
 # Training hyperparameters
 training:
   batch_size: 16
-  epochs: 50
+  epochs: 100
   lr: 1e-4
   weight_decay: 1e-5
   device: cuda
@@ -61,4 +74,4 @@ training:
 logging:
   wandb_project: eq-damage
   wandb_dir: wandb
-  wandb_name: unet_cross_entropy
+  wandb_name: conditional_unet_480_1e-4_cross_entropy
