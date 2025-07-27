@@ -58,13 +58,13 @@ model:
 
 # Loss configuration
 loss:
-  name: cross_entropy # options: cross_entropy, dice, cross_entropy_dice
+  name: cross_entropy_dice # options: cross_entropy, dice, cross_entropy_dice
   dice_weight: 1.0
 
 # Training hyperparameters
 training:
-  batch_size: 16
-  epochs: 100
+  batch_size: 24 # 16, 24, 32
+  epochs: 150
   lr: 1e-4
   weight_decay: 1e-5
   device: cuda  # automatically falls back to CPU if unavailable
@@ -74,4 +74,4 @@ training:
 logging:
   wandb_project: eq-damage
   wandb_dir: wandb
-  wandb_name: conditional_unet_480_1e-4_cross_entropy
+  wandb_name: conditional_unet_480_1e-4_cross_entropy_dice
