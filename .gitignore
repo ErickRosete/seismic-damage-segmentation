@@ -4,3 +4,4 @@ checkpoints/
 wandb/
 __pycache__/
 *.egg-info/
+.venv/
