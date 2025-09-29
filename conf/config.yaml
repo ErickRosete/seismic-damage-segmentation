@@ -64,7 +64,12 @@ model:
 
 # Loss configuration
 loss:
-  name: cross_entropy # options: cross_entropy, dice, cross_entropy_dice
+  name: building_pooled # options: cross_entropy, dice, cross_entropy_dice, building_pooled
+  pixel_loss: cross_entropy
+  pixel_weight: 1.0
+  building_weight: 1.0
+  building_background_id: 0
+  building_ignore_index: null
   dice_weight: 1.0
 
 # Training hyperparameters
