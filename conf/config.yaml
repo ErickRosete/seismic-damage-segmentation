@@ -82,3 +82,10 @@ logging:
   wandb_project: eq-damage
   wandb_dir: wandb
   wandb_name: conditional_deeplabv3plus_720_1e-4_cross_entropy
+
+evaluation:
+  building_metrics:
+    enabled: true
+    raise_on_missing: false
+    log_centroid_overlays: true
+    max_overlay_samples: 4
