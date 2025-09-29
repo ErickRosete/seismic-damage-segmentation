@@ -94,6 +94,35 @@ def _collect_building_metrics_for_epoch(
     building_predictions.extend(batch_preds)
 
 
+def _move_batch_to_device(
+    imgs: torch.Tensor,
+    masks: torch.Tensor,
+    building_ids: torch.Tensor,
+    params: torch.Tensor,
+    device: torch.device,
+    cuda_available: bool,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Move tensors that make up a batch to the target device."""
+
+    non_blocking = cuda_available
+    imgs = imgs.to(device, non_blocking=non_blocking)
+    masks = masks.to(device, non_blocking=non_blocking)
+    building_ids = building_ids.to(device, non_blocking=non_blocking)
+    params = params.to(device, non_blocking=non_blocking)
+    return imgs, masks, building_ids, params
+
+
+def _forward_model(
+    model: torch.nn.Module,
+    cfg: DictConfig,
+    imgs: torch.Tensor,
+    params: torch.Tensor,
+) -> torch.Tensor:
+    if cfg.model.is_conditional and cfg.data.feature_cols:
+        return model(imgs, params)
+    return model(imgs)
+
+
 def run_training(cfg: DictConfig) -> None:
     torch.manual_seed(cfg.seed)
     run_dir = HydraConfig.get().runtime.output_dir
@@ -130,17 +159,13 @@ def run_training(cfg: DictConfig) -> None:
         model.train()
         train_loss = 0.0
         for imgs, masks, building_ids, params, _extras in tqdm(train_loader, desc="Train"):
-            imgs = imgs.to(device, non_blocking=cuda_available)
-            masks = masks.to(device, non_blocking=cuda_available)
-            building_ids = building_ids.to(device, non_blocking=cuda_available)
+            imgs, masks, building_ids, params = _move_batch_to_device(
+                imgs, masks, building_ids, params, device, cuda_available
+            )
 
             optimizer.zero_grad()
 
-            if cfg.model.is_conditional and cfg.data.feature_cols:
-                params = params.to(device, non_blocking=cuda_available)
-                outputs = model(imgs, params)
-            else:
-                outputs = model(imgs)
+            outputs = _forward_model(model, cfg, imgs, params)
 
             loss = loss_fn(outputs, masks, building_ids=building_ids)
             loss.backward()
@@ -164,15 +189,11 @@ def run_training(cfg: DictConfig) -> None:
 
         with torch.no_grad():
             for imgs, masks, building_ids, params, extras in tqdm(val_loader, desc="Val"):
-                imgs = imgs.to(device, non_blocking=cuda_available)
-                masks = masks.to(device, non_blocking=cuda_available)
-                building_ids = building_ids.to(device, non_blocking=cuda_available)
+                imgs, masks, building_ids, params = _move_batch_to_device(
+                    imgs, masks, building_ids, params, device, cuda_available
+                )
 
-                if cfg.model.is_conditional and cfg.data.feature_cols:
-                    params = params.to(device, non_blocking=cuda_available)
-                    outputs = model(imgs, params)
-                else:
-                    outputs = model(imgs)
+                outputs = _forward_model(model, cfg, imgs, params)
 
                 val_loss += loss_fn(outputs, masks, building_ids=building_ids).item()
                 preds = outputs.argmax(dim=1)
