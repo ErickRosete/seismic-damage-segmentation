@@ -74,7 +74,7 @@ def main(cfg: DictConfig):
     for epoch in range(1, cfg.training.epochs + 1):
         model.train()
         train_loss = 0.0
-        for imgs, masks, params in tqdm(train_loader, desc="Train"):
+        for imgs, masks, params, extras in tqdm(train_loader, desc="Train"):
             imgs = imgs.to(device, non_blocking=cuda)
             masks = masks.to(device, non_blocking=cuda)
 
@@ -100,7 +100,7 @@ def main(cfg: DictConfig):
         val_loss = 0.0
         all_imgs, all_masks, all_preds = [], [], []
         with torch.no_grad():
-            for imgs, masks, params in tqdm(val_loader, desc="Val"):
+            for imgs, masks, params, extras in tqdm(val_loader, desc="Val"):
                 imgs = imgs.to(device, non_blocking=cuda)
                 masks = masks.to(device, non_blocking=cuda)
 

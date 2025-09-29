@@ -4,14 +4,24 @@ This repository contains code to load paired pre-disaster, post-disaster, and pi
 
 ## Project Structure
 
-.
-├── dataset/
-│ ├── labels/ # ⟵ _.tif (pixel labels 0,1,2)
-│ ├── pre-disaster/ # ⟵ _.tif (RGB)
-│ └── post-disaster/ # ⟵ \*.tif (RGB)
-├── earthquake_dataset.py # ⟵ PyTorch Dataset + example
-├── requirements.txt
-└── README.md
+. 
+├── data/
+│   └── earthquake_dataset/
+│       ├── train/
+│       │   ├── pre-disaster/     # ⟵ *.tif (RGB imagery)
+│       │   ├── post-disaster/    # ⟵ *.tif (RGB imagery)
+│       │   ├── labels/           # ⟵ *_label.tif (segmentation masks)
+│       │   ├── overlays/         # ⟵ optional visualization overlays
+│       │   └── buildings/        # ⟵ per-UID building metadata
+│       └── val/
+│           └── ... (same layout as train)
+├── scripts/
+│   └── visualizations/
+│       ├── visualize_dataset.py
+│       └── visualize_images.py
+└── src/
+    └── earthquake_segmentation/
+        └── dataset.py            # PyTorch Dataset + helpers
 
 ## Installation
 

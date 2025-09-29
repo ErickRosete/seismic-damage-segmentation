@@ -23,7 +23,7 @@ def visualize(cfg: DictConfig):
     # Load data
     ds = EarthquakeDamageDataset(prefixes, cfg, mode=stage)
     loader = DataLoader(ds, batch_size=n, shuffle=True)
-    imgs, masks, _ = next(iter(loader))
+    imgs, masks, _, extras = next(iter(loader))
 
     # Plot images and masks
     # Ensure axes is always a 2D array so indexing works when n == 1
