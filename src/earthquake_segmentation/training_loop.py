@@ -129,9 +129,10 @@ def run_training(cfg: DictConfig) -> None:
     for epoch in range(1, cfg.training.epochs + 1):
         model.train()
         train_loss = 0.0
-        for imgs, masks, params, _extras in tqdm(train_loader, desc="Train"):
+        for imgs, masks, building_ids, params, _extras in tqdm(train_loader, desc="Train"):
             imgs = imgs.to(device, non_blocking=cuda_available)
             masks = masks.to(device, non_blocking=cuda_available)
+            building_ids = building_ids.to(device, non_blocking=cuda_available)
 
             optimizer.zero_grad()
 
@@ -141,7 +142,7 @@ def run_training(cfg: DictConfig) -> None:
             else:
                 outputs = model(imgs)
 
-            loss = loss_fn(outputs, masks)
+            loss = loss_fn(outputs, masks, building_ids=building_ids)
             loss.backward()
             optimizer.step()
             train_loss += loss.item()
@@ -162,9 +163,10 @@ def run_training(cfg: DictConfig) -> None:
         raise_on_missing = raise_on_missing_global
 
         with torch.no_grad():
-            for imgs, masks, params, extras in tqdm(val_loader, desc="Val"):
+            for imgs, masks, building_ids, params, extras in tqdm(val_loader, desc="Val"):
                 imgs = imgs.to(device, non_blocking=cuda_available)
                 masks = masks.to(device, non_blocking=cuda_available)
+                building_ids = building_ids.to(device, non_blocking=cuda_available)
 
                 if cfg.model.is_conditional and cfg.data.feature_cols:
                     params = params.to(device, non_blocking=cuda_available)
@@ -172,7 +174,7 @@ def run_training(cfg: DictConfig) -> None:
                 else:
                     outputs = model(imgs)
 
-                val_loss += loss_fn(outputs, masks).item()
+                val_loss += loss_fn(outputs, masks, building_ids=building_ids).item()
                 preds = outputs.argmax(dim=1)
                 tracker.update(preds, masks)
 

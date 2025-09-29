@@ -2,6 +2,8 @@ import os
 import glob
 from typing import Dict, List, Optional, Tuple
 
+import numpy as np
+
 import albumentations as A
 import pandas as pd
 import rasterio
@@ -69,7 +71,7 @@ class EarthquakeDamageDataset(Dataset):
                 cls = getattr(A, name)
                 ops.append(cls(**params))
         ops.append(ToTensorV2())
-        self.transforms = Compose(ops)
+        self.transforms = Compose(ops, additional_targets={"building": "mask"})
 
         self.feature_cols = getattr(cfg.data, "feature_cols", None) or []
 
@@ -101,9 +103,18 @@ class EarthquakeDamageDataset(Dataset):
         with rasterio.open(label_path) as src:
             mask = src.read(1)
 
+        # read building mask if available, otherwise default to zeros
+        if building_path and building_path.lower().endswith(".tif"):
+            with rasterio.open(building_path) as src:
+                building = src.read(1)
+        else:
+            building = np.zeros_like(mask, dtype=mask.dtype)
+
         # apply transforms
-        augmented = self.transforms(image=img, mask=mask)
-        image, mask = augmented["image"], augmented["mask"]
+        augmented = self.transforms(image=img, mask=mask, building=building)
+        image = augmented["image"]
+        mask = augmented["mask"]
+        building = augmented["building"]
 
         # load optional metadata params
         if self.feature_cols and uid in self.meta:
@@ -120,4 +131,4 @@ class EarthquakeDamageDataset(Dataset):
             "building_path": building_path,
         }
 
-        return image, mask.long(), params, extras
+        return image, mask.long(), building.long(), params, extras
