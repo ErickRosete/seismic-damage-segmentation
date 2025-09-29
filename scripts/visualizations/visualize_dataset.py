@@ -6,7 +6,7 @@ from omegaconf import DictConfig
 from earthquake_segmentation.dataset import EarthquakeDamageDataset, make_splits
 
 
-@hydra.main(version_base=None, config_path="../../conf", config_name="config")
+@hydra.main(version_base=None, config_path="conf", config_name="config")
 def visualize(cfg: DictConfig):
     """
     Visualize augmented images and masks for train or validation set.

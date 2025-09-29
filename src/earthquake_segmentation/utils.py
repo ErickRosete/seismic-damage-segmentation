@@ -1,4 +1,6 @@
 import os
+import shutil
+import tempfile
 import torch
 import wandb
 from torchmetrics import JaccardIndex
@@ -6,16 +8,40 @@ from typing import Optional
 import numpy as np
 
 
+
+def safe_torch_save(obj, path):
+    """
+    Save torch object safely:
+    - Write to a temporary file first
+    - Atomically replace the target file
+    """
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(path))
+    os.close(fd)
+    try:
+        torch.save(obj, tmp_path)
+        shutil.move(tmp_path, path)
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+
 def save_checkpoint(state, cfg, is_best):
     """
     Save model and optimizer state. Keep best checkpoint.
     """
     directory = cfg.training.checkpoint_dir
-    os.makedirs(directory, exist_ok=True)
-    path = os.path.join(directory, f"epoch_{state['epoch']}.pth")
-    torch.save(state, path)
-    if is_best:
-        torch.save(state, os.path.join(directory, "best.pth"))
+    epoch = state["epoch"]
+    epoch_path = os.path.join(directory, f"epoch_{epoch}.pth")
+    best_path = os.path.join(directory, "best.pth")
+
+    try:
+        if epoch % cfg.training.checkpoint_freq == 0:
+            safe_torch_save(state, epoch_path)
+        if is_best:
+            safe_torch_save(state, best_path)
+    except Exception as e:
+        print(f"[✗] Failed to save checkpoint: {e}")
 
 
 class MetricTracker:
@@ -70,7 +96,7 @@ def log_filtered_imgs(
 ):
     """Logs filtered images to Weights & Biases."""
 
-    filtered = [(img, m, p) for img, m, p in zip(inputs, masks, preds) if m.any()]
+    filtered = [(img, m, p) for img, m, p in zip(inputs, masks, preds) if (m > 1).any()]
     if not filtered:
         return
 
@@ -94,6 +120,7 @@ def log_images(
     cmap = np.array(
         [
             [0, 0, 0],  # background
+            [0, 255, 0],  # no-damaged
             [255, 255, 0],  # damaged
             [255, 0, 0],  # destroyed
         ],

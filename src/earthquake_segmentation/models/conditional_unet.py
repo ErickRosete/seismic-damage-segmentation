@@ -4,22 +4,18 @@ import segmentation_models_pytorch as smp
 
 
 class ConditionalUNetModel(nn.Module):
-    """
-    A wrapper around segmentation_models_pytorch.Unet that
-    conditions on an extra vector injected at the bottleneck.
-    """
+    """UNet wrapper with FiLM at the bottleneck."""
 
     def __init__(
         self,
         encoder_name: str = "resnet34",
-        encoder_weights: str = "imagenet",
+        encoder_weights: str | None = "imagenet",
         in_channels: int = 3,
         classes: int = 1,
         vec_dim: int = 10,
         **unet_kwargs,
     ):
         super().__init__()
-        # -- core Unet --
         self.unet = smp.Unet(
             encoder_name=encoder_name,
             encoder_weights=encoder_weights,
@@ -28,31 +24,27 @@ class ConditionalUNetModel(nn.Module):
             **unet_kwargs,
         )
 
-        # channels at the deepest encoder feature
         bottleneck_ch = self.unet.encoder.out_channels[-1]
-
+        hidden = max(128, bottleneck_ch // 2)
         self.film_mlp = nn.Sequential(
-            nn.Linear(vec_dim, bottleneck_ch * 2),
+            nn.Linear(vec_dim, hidden),
             nn.ReLU(inplace=True),
-            nn.Linear(bottleneck_ch * 2, bottleneck_ch * 2),
+            nn.Linear(hidden, 2 * bottleneck_ch),
         )
+        nn.init.zeros_(self.film_mlp[-1].weight)
+        nn.init.zeros_(self.film_mlp[-1].bias)
 
     def forward(self, x: torch.Tensor, vec: torch.Tensor) -> torch.Tensor:
-        # Encode image into feature maps
-        feats = self.unet.encoder(x)  # list of 5 feature maps
-        bneck = feats[-1]  # the deepest one
+        feats = self.unet.encoder(x)
+        bneck = feats[-1]
         B, Cb, H, W = bneck.shape
 
-        # FiLM parameters
         gamma_beta = self.film_mlp(vec)  # (B, 2*Cb)
         gamma, beta = gamma_beta.chunk(2, dim=1)
+        gamma = gamma.view(B, Cb, 1, 1).to(dtype=bneck.dtype)
+        beta = beta.view(B, Cb, 1, 1).to(dtype=bneck.dtype)
 
-        # apply FiLM
-        gamma = gamma.view(B, Cb, 1, 1)
-        beta = beta.view(B, Cb, 1, 1)
         feats[-1] = bneck * (1 + gamma) + beta
-
-        # Decode + head as usual
         dec_out = self.unet.decoder(feats)
         masks = self.unet.segmentation_head(dec_out)
         return masks

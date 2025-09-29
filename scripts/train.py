@@ -20,7 +20,6 @@ from earthquake_segmentation.utils import (
 @hydra.main(version_base=None, config_path="conf", config_name="config")
 def main(cfg: DictConfig):
     torch.manual_seed(cfg.seed)
-
     run_dir = HydraConfig.get().runtime.output_dir
     OmegaConf.set_readonly(cfg, False)
     cfg.training.checkpoint_dir = os.path.join(run_dir, cfg.training.checkpoint_dir)
@@ -47,6 +46,7 @@ def main(cfg: DictConfig):
         num_workers=4,
         pin_memory=cuda,
         persistent_workers=cuda,
+        drop_last=True,          # <- ensures only full batches are used
     )
     val_loader = DataLoader(
         val_ds,

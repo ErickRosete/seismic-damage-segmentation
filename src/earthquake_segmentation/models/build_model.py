@@ -1,5 +1,7 @@
 import segmentation_models_pytorch as smp
 from earthquake_segmentation.models.conditional_unet import ConditionalUNetModel
+from earthquake_segmentation.models.conditional_deeplabv3plus import ConditionalDeepLabV3Plus
+from earthquake_segmentation.models.conditional_unetplusplus import ConditionalUnetPlusPlus
 
 
 def build_model(cfg):
@@ -41,6 +43,21 @@ def build_model(cfg):
             classes=m.num_classes,
             vec_dim=m.vec_dim,
         )
-
+    if m.name == "conditional_deeplabv3plus":
+        return ConditionalDeepLabV3Plus(
+            encoder_name=m.encoder,
+            encoder_weights=m.encoder_weights,
+            in_channels=3,
+            classes=m.num_classes,
+            vec_dim=m.vec_dim,
+        )
+    if m.name == "conditional_unetplusplus":
+        return ConditionalUnetPlusPlus(
+            encoder_name=m.encoder,
+            encoder_weights=m.encoder_weights,
+            in_channels=3,
+            classes=m.num_classes,
+            vec_dim=m.vec_dim,
+        )
     # Add additional architectures here
     raise ValueError(f"Unsupported model: {m.name}")
