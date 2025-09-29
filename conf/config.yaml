@@ -27,14 +27,19 @@ data:
 
 # Augmentations (Albumentations style)
 augmentations:
+  # All augmentations produce 512x512 images so predicted masks stay aligned with
+  # original building polygons.
   train:
-    - Resize:
-        height: 768    # 768, 512, 256
-        width: 768     # 768, 512, 256
+    - RandomResizedCrop:
+        height: 512
+        width: 512
+        scale:
+          - 0.8
+          - 1.0
+        ratio:
+          - 0.75
+          - 1.3333333333
     - Normalize: {}
-    - RandomCrop:
-        height: 720    # 720, 480, 224
-        width: 720     # 720, 480, 224
     - HorizontalFlip:
         p: 0.5
     - VerticalFlip:
@@ -43,8 +48,8 @@ augmentations:
         p: 0.2
   val:
     - Resize:
-        height: 720   # 720, 480, 224
-        width: 720    # 720, 480, 224
+        height: 512
+        width: 512
     - Normalize: {}
 
 # Model configuration

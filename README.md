@@ -23,6 +23,13 @@ This repository contains code to load paired pre-disaster, post-disaster, and pi
     └── earthquake_segmentation/
         └── dataset.py            # PyTorch Dataset + helpers
 
+## Image dimensions
+
+All training and validation transforms operate on 512×512 imagery so that model
+predictions line up with the provided building polygons. The training pipeline
+uses a `RandomResizedCrop` (512×512 target) while validation applies a
+deterministic `Resize`, both defined in `conf/config.yaml`.
+
 ## Installation
 
 ```bash
