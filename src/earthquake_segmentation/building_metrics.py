@@ -87,11 +87,14 @@ def collect_building_metrics_from_batch(
     batch_targets: List[int] = []
     batch_predictions: List[int] = []
 
-    for sample_idx, extra in enumerate(extras):
-        extra = extra or {}
-        building_path = extra.get("building_path")
-        label_path = extra.get("label_path")
-        uid = extra.get("uid", "unknown")
+    building_paths = extras.get("building_path", [])
+    label_paths = extras.get("label_path", [])
+    uids = extras.get("uid", [])
+
+    for sample_idx in range(len(uids)):
+        building_path = building_paths[sample_idx] if len(building_paths) > sample_idx else None
+        label_path = label_paths[sample_idx] if len(label_paths) > sample_idx else None
+        uid = uids[sample_idx] if len(uids) > sample_idx else "unknown"
 
         if not building_path or not os.path.exists(building_path):
             message = f"Missing building annotations for UID {uid}."

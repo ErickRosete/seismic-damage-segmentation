@@ -8,12 +8,12 @@ def dice_loss(
     pred: torch.Tensor,
     target: torch.Tensor,
     eps: float = 1e-6,
-    ignore_index: Optional[int] = None,
+    ignore_index: int = -100,
 ) -> torch.Tensor:
     """Compute Dice loss for multi-class segmentation."""
     pred = torch.softmax(pred, dim=1)
     target_tensor = target
-    if ignore_index is not None:
+    if ignore_index != -100:
         valid_mask = target != ignore_index
         target_tensor = torch.where(
             valid_mask, target, torch.zeros_like(target, device=target.device)
@@ -22,7 +22,7 @@ def dice_loss(
     target_one_hot = (
         F.one_hot(target_tensor, num_classes=pred.shape[1]).permute(0, 3, 1, 2).float()
     )
-    if ignore_index is not None:
+    if ignore_index != -100:
         target_one_hot = target_one_hot * valid_mask.unsqueeze(1)
     dims = (1, 2, 3)
     intersection = (pred * target_one_hot).sum(dims)
@@ -32,7 +32,7 @@ def dice_loss(
 
 
 def _build_pixel_loss(
-    cfg, name: str, ignore_index: Optional[int]
+    cfg, name: str, ignore_index: int = -100
 ) -> Callable[..., torch.Tensor]:
     if name == "cross_entropy":
         return lambda pred, target, **_: F.cross_entropy(
@@ -60,8 +60,8 @@ class BuildingPooledLoss:
         pixel_loss: Callable[..., torch.Tensor],
         pixel_weight: float,
         building_weight: float,
-        ignore_index: Optional[int],
-        background_id: int,
+        background_id: int = 0,
+        ignore_index: int = -100,
         eps: float = 1e-12,
     ) -> None:
         self.pixel_loss = pixel_loss
@@ -88,7 +88,7 @@ class BuildingPooledLoss:
                 ]
             for building_id in sample_buildings:
                 mask = building_ids[batch_idx] == building_id
-                if self.ignore_index is not None:
+                if self.ignore_index != -100:
                     mask = mask & (target[batch_idx] != self.ignore_index)
                 if not torch.any(mask):
                     continue
@@ -124,7 +124,7 @@ class BuildingPooledLoss:
 def build_loss(cfg):
     """Return a loss function based on the config."""
     name = cfg.loss.name
-    ignore_index = cfg.loss.get("ignore_index", None)
+    ignore_index = cfg.loss.get("ignore_index", -100)
     if name in {"cross_entropy", "dice", "cross_entropy_dice"}:
         return _build_pixel_loss(cfg, name, ignore_index)
     if name == "building_pooled":

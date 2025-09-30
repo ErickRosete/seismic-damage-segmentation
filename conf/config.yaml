@@ -31,8 +31,9 @@ augmentations:
   # original building polygons.
   train:
     - RandomResizedCrop:
-        height: 512
-        width: 512
+        size: 
+          - 512
+          - 512
         scale:
           - 0.8
           - 1.0
@@ -54,9 +55,9 @@ augmentations:
 
 # Model configuration
 model:
-  name: conditional_deeplabv3plus    # options: unet, deeplabv3plus, unetplusplus, conditional_unet
+  name: unet    # options: unet, deeplabv3plus, unetplusplus, conditional_unet
                             # conditional_deeplabv3plus, conditional_unetplusplus
-  is_conditional: true
+  is_conditional: false
   num_classes: 4
   encoder: resnet34
   encoder_weights: imagenet
@@ -64,13 +65,13 @@ model:
 
 # Loss configuration
 loss:
-  name: building_pooled # options: cross_entropy, dice, cross_entropy_dice, building_pooled
-  pixel_loss: cross_entropy
-  pixel_weight: 1.0
-  building_weight: 1.0
-  building_background_id: 0
-  building_ignore_index: null
-  dice_weight: 1.0
+  name: cross_entropy # options: cross_entropy, dice, cross_entropy_dice, building_pooled
+  # pixel_loss: cross_entropy
+  # pixel_weight: 1.0
+  # building_weight: 1.0
+  # building_background_id: 0
+  # building_ignore_index: -100
+  # dice_weight: 1.0
 
 # Training hyperparameters
 training:
@@ -86,7 +87,7 @@ training:
 logging:
   wandb_project: eq-damage
   wandb_dir: wandb
-  wandb_name: conditional_deeplabv3plus_720_1e-4_cross_entropy
+  wandb_name: unet_512_1e-4_cross_entropy
 
 evaluation:
   building_metrics:

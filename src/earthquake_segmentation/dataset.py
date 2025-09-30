@@ -109,7 +109,8 @@ class EarthquakeDamageDataset(Dataset):
                 building = src.read(1)
         else:
             building = np.zeros_like(mask, dtype=mask.dtype)
-
+            building_path = ""
+        
         # apply transforms
         augmented = self.transforms(image=img, mask=mask, building=building)
         image = augmented["image"]

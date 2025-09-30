@@ -220,12 +220,13 @@ def run_training(cfg: DictConfig) -> None:
                     log_centroid_overlays
                     and len(building_overlay_samples) < max_overlay_samples
                 ):
-                    for sample_idx, extra in enumerate(extras):
-                        extra = extra or {}
-                        building_path = extra.get("building_path")
+                    uids = extras.get("uid", [])
+                    building_paths = extras.get("building_path", [])
+                    for sample_idx in range(len(uids)):
+                        building_path = building_paths[sample_idx] if len(building_paths) > sample_idx else None
                         if not building_path or not os.path.exists(building_path):
                             continue
-                        uid = extra.get("uid", f"sample_{len(building_overlay_samples)}")
+                        uid = uids[sample_idx] if len(uids) > sample_idx else "unknown"
                         building_overlay_samples.append(
                             (
                                 imgs_cpu[sample_idx],
