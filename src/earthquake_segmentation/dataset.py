@@ -7,10 +7,13 @@ import numpy as np
 import albumentations as A
 import pandas as pd
 import rasterio
+from rasterio import features
 import torch
 from albumentations import Compose
 from albumentations.pytorch import ToTensorV2
 from torch.utils.data import Dataset
+
+from .utils import _load_building_geometries
 
 
 def _collect_uids(labels_dir: str) -> List[str]:
@@ -102,17 +105,35 @@ class EarthquakeDamageDataset(Dataset):
         # read label
         with rasterio.open(label_path) as src:
             mask = src.read(1)
+            label_transform = src.transform
+            label_shape = (src.height, src.width)
 
         # read building mask if available, otherwise default to zeros
-        if building_path and building_path.lower().endswith(".tif"):
-            with rasterio.open(building_path) as src:
-                building = src.read(1)
-        else:
-            building = np.zeros_like(mask, dtype=mask.dtype)
+        building_ids = np.zeros_like(mask, dtype=np.int32)
+        if not building_path:
             building_path = ""
-        
+        elif building_path.lower().endswith(".tif"):
+            with rasterio.open(building_path) as src:
+                building_ids = src.read(1)
+        elif building_path.lower().endswith(".geojson"):
+            geometries = _load_building_geometries(building_path)
+            if geometries:
+                shapes = (
+                    (geometry, idx + 1)
+                    for idx, (geometry, _properties) in enumerate(geometries)
+                )
+                building_ids = features.rasterize(
+                    shapes=shapes,
+                    out_shape=label_shape,
+                    transform=label_transform,
+                    fill=0,
+                    dtype=np.int32,
+                )
+        else:
+            building_path = ""
+
         # apply transforms
-        augmented = self.transforms(image=img, mask=mask, building=building)
+        augmented = self.transforms(image=img, mask=mask, building=building_ids)
         image = augmented["image"]
         mask = augmented["mask"]
         building = augmented["building"]
