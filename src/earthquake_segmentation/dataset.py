@@ -12,6 +12,7 @@ import torch
 from albumentations import Compose
 from albumentations.pytorch import ToTensorV2
 from torch.utils.data import Dataset
+from affine import Affine
 
 from .utils import _load_building_geometries
 
@@ -105,7 +106,6 @@ class EarthquakeDamageDataset(Dataset):
         # read label
         with rasterio.open(label_path) as src:
             mask = src.read(1)
-            label_transform = src.transform
             label_shape = (src.height, src.width)
 
         # read building mask if available, otherwise default to zeros
@@ -124,10 +124,11 @@ class EarthquakeDamageDataset(Dataset):
                 )
                 building_ids = features.rasterize(
                     shapes=shapes,
-                    out_shape=label_shape,
-                    transform=label_transform,
+                    out_shape=label_shape,          # (H, W) of the label raster/tile
+                    transform=Affine.identity(),    # <-- PIXEL COORDS, not geospatial
                     fill=0,
                     dtype=np.int32,
+                    all_touched=True,               # helps thin/sliver polys
                 )
         else:
             building_path = ""

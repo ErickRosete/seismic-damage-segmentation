@@ -203,70 +203,76 @@ def _load_building_centroids(building_json_path: str) -> List[Tuple[float, float
 
 def accumulate_building_majority_labels(
     building_json_path: str,
-    label_raster_path: str,
     gt_mask: torch.Tensor,
     pred_mask: torch.Tensor,
 ) -> List[Tuple[int, int]]:
     """
-    Rasterize building polygons and compute majority GT/pred labels per building.
+    Rasterize *pixel-space* building polygons and compute majority GT/pred labels per building.
 
-    Returns a list of ``(target, prediction)`` tuples, one per building polygon.
+    Assumptions:
+      - The GeoJSON written by your preprocessing stores polygon coordinates in *pixel coordinates*
+        for the (H, W) tile (e.g., produced by _subset_buildings_to_tile / _serialize_buildings).
+      - Therefore we burn polygons with an identity transform into an array of shape gt_mask.shape.
+
+    Returns:
+      List of (gt_majority_class, pred_majority_class) tuples, one per building instance that
+      overlaps at least one pixel in the current mask/prediction.
     """
-
     if gt_mask.shape != pred_mask.shape:
-        raise ValueError(
-            "Ground truth and prediction masks must share the same spatial shape."
-        )
+        raise ValueError("Ground truth and prediction masks must share the same spatial shape.")
 
-    gt_np = gt_mask.detach().cpu().numpy()
-    pred_np = pred_mask.detach().cpu().numpy()
+    # Tensors -> numpy (H, W), integers
+    gt_np = gt_mask.detach().cpu().numpy().astype(np.int64, copy=False)
+    pred_np = pred_mask.detach().cpu().numpy().astype(np.int64, copy=False)
 
+    # Load polygons (as GeoJSON geometry dicts) + properties
     geometries = _load_building_geometries(building_json_path)
     if not geometries:
         warnings.warn(f"No building geometries found in '{building_json_path}'.")
         return []
 
-    with rasterio.open(label_raster_path) as src:
-        transform = src.transform
-        out_shape = (src.height, src.width)
-
-    # Ensure the rasterized map aligns with the tensors. If shapes diverge we
-    # rescale the affine transform to the tensor's spatial shape.
-    if out_shape != gt_np.shape:
-        scale_y = out_shape[0] / gt_np.shape[0]
-        scale_x = out_shape[1] / gt_np.shape[1]
-        transform = transform * Affine.scale(scale_x, scale_y)
-        out_shape = gt_np.shape
-
+    # Prepare shapes with per-building labels 1..K
     shapes: List[Tuple[dict, int]] = []
     labels_and_properties: List[Tuple[int, dict]] = []
     for geometry, properties in geometries:
         if geometry is None:
             continue
-        label = len(shapes) + 1
+        label = len(shapes) + 1  # instance id for this image/tile
         shapes.append((geometry, label))
         labels_and_properties.append((label, properties or {}))
+
     if not shapes:
         return []
 
+    # Burn polygons in pixel space using identity transform at tensor resolution
+    out_shape = gt_np.shape  # (H, W)
     building_index = features.rasterize(
-        shapes,
+        shapes=shapes,
         out_shape=out_shape,
-        transform=transform,
-        fill=0,
+        transform=Affine.identity(),  # <-- critical: polygons are in pixel coords
+        fill=0,                        # background
         dtype="int32",
-        all_touched=True,
+        all_touched=True,              # helps with thin/sliver polygons
     )
 
+    # If nothing burned, early exit
+    if building_index.max() == 0:
+        # Not fatal, but indicates coord mismatch or empty polygons for this tile
+        return []
+
+    # Aggregate majority classes per building
     results: List[Tuple[int, int]] = []
-    for label, _ in labels_and_properties:
-        mask = building_index == label
+    for inst_label, _props in labels_and_properties:
+        mask = (building_index == inst_label)
         if not mask.any():
             continue
+
         gt_vals = gt_np[mask]
         pred_vals = pred_np[mask]
         if gt_vals.size == 0 or pred_vals.size == 0:
             continue
+
+        # Majority vote (ties resolved by smallest class index by np.argmax)
         gt_majority = int(np.bincount(gt_vals).argmax())
         pred_majority = int(np.bincount(pred_vals).argmax())
         results.append((gt_majority, pred_majority))
@@ -329,7 +335,7 @@ def _build_centroid_overlay_panel(
     mask_overlay = mask_rgb.copy()
     pred_overlay = pred_rgb.copy()
 
-    for row_f, col_f in centroids:
+    for col_f, row_f in centroids:
         row = int(round(row_f))
         col = int(round(col_f))
         _draw_cross(image_overlay, row, col, overlay_color)

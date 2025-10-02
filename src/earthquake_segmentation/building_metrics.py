@@ -77,24 +77,25 @@ def resolve_building_metrics_settings(cfg: DictConfig) -> Tuple[bool, bool]:
 
 
 def collect_building_metrics_from_batch(
-    extras: Sequence[Optional[Dict[str, Optional[str]]]],
+    extras: Dict[str, List[Optional[str]]],
     masks_cpu: torch.Tensor,
     preds_cpu: torch.Tensor,
     raise_on_missing: bool,
 ) -> Tuple[List[int], List[int]]:
-    """Collect building-level targets/predictions for a batch."""
+    """Collect building-level targets/predictions for a batch (pixel-space polygons)."""
 
     batch_targets: List[int] = []
     batch_predictions: List[int] = []
 
-    building_paths = extras.get("building_path", [])
-    label_paths = extras.get("label_path", [])
-    uids = extras.get("uid", [])
+    building_paths = extras.get("building_path", []) or []
+    uids = extras.get("uid", []) or []
+    n = len(uids)
 
-    for sample_idx in range(len(uids)):
-        building_path = building_paths[sample_idx] if len(building_paths) > sample_idx else None
-        label_path = label_paths[sample_idx] if len(label_paths) > sample_idx else None
-        uid = uids[sample_idx] if len(uids) > sample_idx else "unknown"
+    for sample_idx in range(n):
+        building_path = (
+            building_paths[sample_idx] if sample_idx < len(building_paths) else None
+        )
+        uid = uids[sample_idx] if sample_idx < len(uids) else "unknown"
 
         if not building_path or not os.path.exists(building_path):
             message = f"Missing building annotations for UID {uid}."
@@ -103,26 +104,16 @@ def collect_building_metrics_from_batch(
             warnings.warn(message)
             continue
 
-        if not label_path or not os.path.exists(label_path):
-            message = f"Missing label raster for UID {uid}."
-            if raise_on_missing:
-                raise FileNotFoundError(message)
-            warnings.warn(message)
-            continue
-
         try:
             pairs = accumulate_building_majority_labels(
                 building_path,
-                label_path,
                 masks_cpu[sample_idx],
                 preds_cpu[sample_idx],
             )
-        except Exception as exc:  # pragma: no cover - defensive guard
+        except Exception as exc:  # pragma: no cover
             if raise_on_missing:
                 raise
-            warnings.warn(
-                f"Failed to compute building metrics for UID {uid}: {exc}"
-            )
+            warnings.warn(f"Failed to compute building metrics for UID {uid}: {exc}")
             continue
 
         for target, prediction in pairs:
@@ -136,7 +127,6 @@ def compute_building_metric_statistics(
     targets: Sequence[int], predictions: Sequence[int], num_classes: int
 ) -> Optional[Dict[str, object]]:
     """Return precision/recall/F1/support/confusion for building predictions."""
-
     if not targets:
         return None
 
@@ -156,6 +146,10 @@ def compute_building_metric_statistics(
     )
     conf_mat = confusion_matrix(targets, predictions, labels=labels)
 
+    # overall accuracy = correct / total
+    total = conf_mat.sum()
+    accuracy = float(conf_mat.trace() / total) if total > 0 else 0.0
+
     return {
         "labels": labels,
         "precision": precision,
@@ -166,6 +160,7 @@ def compute_building_metric_statistics(
         "recall_macro": recall_macro,
         "f1_macro": f1_macro,
         "confusion": conf_mat,
+        "accuracy": accuracy,
     }
 
 
@@ -177,6 +172,7 @@ def update_log_with_building_metrics(
     log_payload["building_precision_macro"] = stats["precision_macro"]
     log_payload["building_recall_macro"] = stats["recall_macro"]
     log_payload["building_f1_macro"] = stats["f1_macro"]
+    log_payload["building_accuracy"] = stats["accuracy"]  # <--- added
 
     labels: List[int] = stats["labels"]  # type: ignore[assignment]
     precision = stats["precision"]
@@ -191,11 +187,7 @@ def update_log_with_building_metrics(
         log_payload[f"building_f1_class_{label}"] = float(f1[idx])
         log_payload[f"building_support_class_{label}"] = int(support[idx])
         for jdx, pred_label in enumerate(labels):
-            log_payload[
-                f"building_confusion/label_{label}_pred_{pred_label}"
-            ] = int(
-                conf_mat[idx, jdx]
-            )
+            log_payload[f"building_confusion/label_{label}_pred_{pred_label}"] = int(conf_mat[idx, jdx])
 
 
 __all__ = [
@@ -204,4 +196,3 @@ __all__ = [
     "resolve_building_metrics_settings",
     "update_log_with_building_metrics",
 ]
-
