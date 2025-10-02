@@ -65,13 +65,18 @@ model:
 
 # Loss configuration
 loss:
-  name: cross_entropy # options: cross_entropy, dice, cross_entropy_dice, building_pooled
+  name: cross_entropy # options: cross_entropy, dice, focal, cross_entropy_dice,
+                      #          cross_entropy_focal, focal_dice, building_pooled
   # pixel_loss: cross_entropy
   # pixel_weight: 1.0
   # building_weight: 1.0
   # building_background_id: 0
   # building_ignore_index: -100
   # dice_weight: 1.0
+  # focal_weight: 1.0
+  # cross_entropy_weight: 1.0
+  # gamma: 2.0  # focal loss focusing parameter
+  # alpha: null  # scalar or per-class weights for focal loss
 
 # Training hyperparameters
 training:

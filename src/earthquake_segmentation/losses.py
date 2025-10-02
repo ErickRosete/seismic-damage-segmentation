@@ -1,12 +1,54 @@
-from typing import Callable, Optional
+from typing import Callable, Iterable, Optional, Sequence
 
 import torch
 import torch.nn.functional as F
 
 
+def focal_loss(
+    pred: torch.Tensor,
+    target: torch.Tensor,
+    *,
+    gamma: float = 2.0,
+    alpha: Optional[Sequence[float] | float | torch.Tensor] = None,
+    ignore_index: int = -100,
+) -> torch.Tensor:
+    """Compute multi-class focal loss with optional class weighting."""
+
+    ce = F.cross_entropy(pred, target, reduction="none", ignore_index=ignore_index)
+    if ignore_index != -100:
+        valid_mask = target != ignore_index
+        target = torch.where(valid_mask, target, torch.zeros_like(target))
+    else:
+        valid_mask = None
+
+    # p_t = exp(-ce) since ce = -log(p_t)
+    pt = torch.exp(-ce)
+    loss = (1 - pt) ** gamma * ce
+
+    if alpha is not None:
+        if not torch.is_tensor(alpha):
+            alpha_tensor = pred.new_tensor(alpha)
+        else:
+            alpha_tensor = alpha.to(device=pred.device, dtype=pred.dtype)
+
+        if alpha_tensor.ndim == 0:
+            loss = loss * alpha_tensor
+        else:
+            loss = loss * alpha_tensor[target]
+
+    if valid_mask is not None:
+        loss = loss[valid_mask]
+
+    if loss.numel() == 0:
+        return pred.new_zeros(())
+
+    return loss.mean()
+
+
 def dice_loss(
     pred: torch.Tensor,
     target: torch.Tensor,
+    *,
     eps: float = 1e-6,
     ignore_index: int = -100,
 ) -> torch.Tensor:
@@ -31,26 +73,97 @@ def dice_loss(
     return 1 - dice.mean()
 
 
-def _build_pixel_loss(
-    cfg, name: str, ignore_index: int = -100
+def _as_mapping(value):
+    if value is None or isinstance(value, dict):
+        return value
+    if hasattr(value, "items"):
+        return {key: value[key] for key in value}
+    return value
+
+
+def _create_pixel_loss(
+    cfg,
+    name: str,
+    ignore_index: int,
+    params: Optional[dict] = None,
 ) -> Callable[..., torch.Tensor]:
+    params = _as_mapping(params) or {}
     if name == "cross_entropy":
         return lambda pred, target, **_: F.cross_entropy(
             pred, target, ignore_index=ignore_index
         )
     if name == "dice":
+        eps = float(params.get("eps", cfg.loss.get("eps", 1e-6)))
         return lambda pred, target, **_: dice_loss(
-            pred, target, ignore_index=ignore_index
+            pred, target, eps=eps, ignore_index=ignore_index
         )
+    if name == "focal":
+        gamma = float(params.get("gamma", cfg.loss.get("gamma", 2.0)))
+        alpha = params.get("alpha", cfg.loss.get("alpha"))
+
+        if alpha is not None and not torch.is_tensor(alpha):
+            alpha = torch.as_tensor(alpha, dtype=torch.float32)
+
+        return lambda pred, target, **_: focal_loss(
+            pred,
+            target,
+            gamma=gamma,
+            alpha=alpha,
+            ignore_index=ignore_index,
+        )
+    raise ValueError(f"Unknown base loss: {name}")
+
+
+def _combine_loss_functions(
+    weighted_losses: Iterable[tuple[float, Callable[..., torch.Tensor]]]
+) -> Callable[..., torch.Tensor]:
+    weighted_losses = tuple(weighted_losses)
+    if not weighted_losses:
+        raise ValueError("At least one loss must be provided for combination")
+
+    def loss_fn(pred: torch.Tensor, target: torch.Tensor, **kwargs) -> torch.Tensor:
+        total = None
+        for weight, component in weighted_losses:
+            component_value = component(pred, target, **kwargs)
+            term = float(weight) * component_value
+            total = term if total is None else total + term
+        return total if total is not None else pred.new_zeros(())
+
+    return loss_fn
+
+
+def _build_pixel_loss(
+    cfg, name: str, ignore_index: int = -100
+) -> Callable[..., torch.Tensor]:
+    if name in {"cross_entropy", "dice", "focal"}:
+        return _create_pixel_loss(cfg, name, ignore_index)
     if name == "cross_entropy_dice":
-        weight = cfg.loss.get("dice_weight", 1.0)
-
-        def loss_fn(pred, target, **_):
-            ce = F.cross_entropy(pred, target, ignore_index=ignore_index)
-            d = dice_loss(pred, target, ignore_index=ignore_index)
-            return ce + weight * d
-
-        return loss_fn
+        ce_weight = float(cfg.loss.get("cross_entropy_weight", 1.0))
+        dice_weight = float(cfg.loss.get("dice_weight", 1.0))
+        return _combine_loss_functions(
+            (
+                (ce_weight, _create_pixel_loss(cfg, "cross_entropy", ignore_index)),
+                (dice_weight, _create_pixel_loss(cfg, "dice", ignore_index)),
+            )
+        )
+    if name == "cross_entropy_focal":
+        ce_weight = float(cfg.loss.get("cross_entropy_weight", 1.0))
+        focal_weight = float(cfg.loss.get("focal_weight", 1.0))
+        return _combine_loss_functions(
+            (
+                (ce_weight, _create_pixel_loss(cfg, "cross_entropy", ignore_index)),
+                (focal_weight, _create_pixel_loss(cfg, "focal", ignore_index)),
+            )
+        )
+    if name == "focal_dice":
+        focal_weight = float(cfg.loss.get("focal_weight", 1.0))
+        dice_weight = float(cfg.loss.get("dice_weight", 1.0))
+        return _combine_loss_functions(
+            (
+                (focal_weight, _create_pixel_loss(cfg, "focal", ignore_index)),
+                (dice_weight, _create_pixel_loss(cfg, "dice", ignore_index)),
+            )
+        )
     raise ValueError(f"Unknown pixel loss: {name}")
 
 
@@ -125,7 +238,15 @@ def build_loss(cfg):
     """Return a loss function based on the config."""
     name = cfg.loss.name
     ignore_index = cfg.loss.get("ignore_index", -100)
-    if name in {"cross_entropy", "dice", "cross_entropy_dice"}:
+    pixel_losses = {
+        "cross_entropy",
+        "dice",
+        "focal",
+        "cross_entropy_dice",
+        "cross_entropy_focal",
+        "focal_dice",
+    }
+    if name in pixel_losses:
         return _build_pixel_loss(cfg, name, ignore_index)
     if name == "building_pooled":
         pixel_loss_name = cfg.loss.get("pixel_loss", "cross_entropy")
